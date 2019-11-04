@@ -228,7 +228,7 @@ class DLA(nn.Module):
         self.channels = channels
         self.num_classes = num_classes
         self.base_layer = nn.Sequential(
-            nn.Conv2d(3, channels[0], kernel_size=7, stride=1,
+            nn.Conv2d(channels[0], channels[0], kernel_size=7, stride=1,
                       padding=3, bias=False),
             nn.BatchNorm2d(channels[0], momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True))
@@ -287,14 +287,16 @@ class DLA(nn.Module):
         y = []
         x = self.base_layer(x)
         for i in range(6):
+            #print(i)
             x = getattr(self, 'level{}'.format(i))(x)
+            #print(x.shape)
             y.append(x)
         return y
 
     def load_pretrained_model(self, data='imagenet', name='dla34', hash='ba72cf86'):
         # fc = self.fc
         if name.endswith('.pth'):
-            model_weights = torch.load(data + name)
+            model_weights = torch.load(name)
         else:
             model_url = get_model_url(data, name, hash)
             model_weights = model_zoo.load_url(model_url)
@@ -311,7 +313,7 @@ def dla34(pretrained=True, **kwargs):  # DLA-34
                 [16, 32, 64, 128, 256, 512],
                 block=BasicBlock, **kwargs)
     if pretrained:
-        model.load_pretrained_model(data='imagenet', name='dla34', hash='ba72cf86')
+        model.load_pretrained_model(data='imagenet', name='dla34-ba72cf86.pth', hash='ba72cf86')
     return model
 
 class Identity(nn.Module):
@@ -350,6 +352,7 @@ class DeformConv(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.conv = DCN(chi, cho, kernel_size=(3,3), stride=1, padding=1, dilation=1, deformable_groups=1)
+
 
     def forward(self, x):
         x = self.conv(x)
@@ -480,14 +483,19 @@ class DLASeg(nn.Module):
         for head in self.heads:
             z[head] = self.__getattr__(head)(y[-1])
         return [z]
-    
+        '''
+        z = []
+        for head in self.heads:
+            z.append(self.__getattr__(head)(y[-1]))
+        z = torch.cat(z,1)
+        return z
+        '''
 
 def get_pose_net(num_layers, heads, head_conv=256, down_ratio=4):
   model = DLASeg('dla{}'.format(num_layers), heads,
-                 pretrained=True,
+                 pretrained=False,
                  down_ratio=down_ratio,
                  final_kernel=1,
                  last_level=5,
                  head_conv=head_conv)
   return model
-

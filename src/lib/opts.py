@@ -251,7 +251,7 @@ class opts(object):
     if opt.trainval:
       opt.val_intervals = 100000000
 
-    if opt.debug > 0:
+    if 0 & opt.debug > 0:
       opt.num_workers = 0
       opt.batch_size = 1
       opt.gpus = [opt.gpus[0]]
@@ -282,20 +282,21 @@ class opts(object):
     return opt
 
   def update_dataset_info_and_set_heads(self, opt, dataset):
-    input_h, input_w = dataset.default_resolution
-    opt.mean, opt.std = dataset.mean, dataset.std
-    opt.num_classes = dataset.num_classes
+    if opt.task!='cardet':
+        input_h, input_w = dataset.default_resolution
+        opt.mean, opt.std = dataset.mean, dataset.std
+        opt.num_classes = dataset.num_classes
 
-    # input_h(w): opt.input_h overrides opt.input_res overrides dataset default
-    input_h = opt.input_res if opt.input_res > 0 else input_h
-    input_w = opt.input_res if opt.input_res > 0 else input_w
-    opt.input_h = opt.input_h if opt.input_h > 0 else input_h
-    opt.input_w = opt.input_w if opt.input_w > 0 else input_w
-    opt.output_h = opt.input_h // opt.down_ratio
-    opt.output_w = opt.input_w // opt.down_ratio
-    opt.input_res = max(opt.input_h, opt.input_w)
-    opt.output_res = max(opt.output_h, opt.output_w)
-    
+        # input_h(w): opt.input_h overrides opt.input_res overrides dataset default
+        input_h = opt.input_res if opt.input_res > 0 else input_h
+        input_w = opt.input_res if opt.input_res > 0 else input_w
+        opt.input_h = opt.input_h if opt.input_h > 0 else input_h
+        opt.input_w = opt.input_w if opt.input_w > 0 else input_w
+        opt.output_h = opt.input_h // opt.down_ratio
+        opt.output_w = opt.input_w // opt.down_ratio
+        opt.input_res = max(opt.input_h, opt.input_w)
+        opt.output_res = max(opt.output_h, opt.output_w)
+        
     if opt.task == 'exdet':
       # assert opt.dataset in ['coco']
       num_hm = 1 if opt.agnostic_ex else opt.num_classes
@@ -328,6 +329,23 @@ class opts(object):
         opt.heads.update({'hm_hp': 17})
       if opt.reg_hp_offset:
         opt.heads.update({'hp_offset': 2})
+    elif opt.task =='cardet':
+      opt.num_classes = 1
+      opt.heads = {'hm': 1, 'rot': 8, 'dim': 3}
+      opt.reg_offset = 1
+      opt.reg_bbox = 0
+      if opt.reg_bbox:
+        opt.heads.update(
+          {'wh': 2})
+      if opt.reg_offset:
+        opt.heads.update({'reg': 2})
+      opt.voxel_size = [0.25, 0.25, 20]
+      opt.point_cloud_range = [-64, -64, -10, 64, 64, 10]
+      opt.max_number_of_points_per_voxel = 60
+      opt.root_path = '/data/object3d/'
+      opt.grid_size = [int((opt.point_cloud_range[3]-opt.point_cloud_range[0])/opt.voxel_size[0]),
+                        int((opt.point_cloud_range[4]-opt.point_cloud_range[1])/opt.voxel_size[1]),
+                        1]
     else:
       assert 0, 'task not defined!'
     print('heads', opt.heads)

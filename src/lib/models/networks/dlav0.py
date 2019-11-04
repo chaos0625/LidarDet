@@ -227,7 +227,7 @@ class DLA(nn.Module):
         self.return_levels = return_levels
         self.num_classes = num_classes
         self.base_layer = nn.Sequential(
-            nn.Conv2d(3, channels[0], kernel_size=7, stride=1,
+            nn.Conv2d(channels[0], channels[0], kernel_size=7, stride=1,
                       padding=3, bias=False),
             BatchNorm(channels[0]),
             nn.ReLU(inplace=True))
@@ -602,12 +602,28 @@ class DLASeg(nn.Module):
         x = self.dla_up(x[self.first_level:])
         # x = self.fc(x)
         # y = self.softmax(self.up(x))
+        
         ret = {}
         for head in self.heads:
             ret[head] = self.__getattr__(head)(x)
         return [ret]
-
-    '''
+        '''
+        ret = []
+        for head in self.heads:
+            print(head)
+            s = self.__getattr__(head)(x)
+            if head =='hm':
+                s = s.sigmoid_()
+            if head == 'hm':
+                s1 = nn.functional.max_pool2d(
+                        s, (3, 3), stride=1, padding=1)
+                ret.append(s1)
+            ret.append(s)
+        ret = torch.cat(ret, 1)
+        print(ret.size())
+        return ret
+        '''
+    
     def optim_parameters(self, memo=None):
         for param in self.base.parameters():
             yield param
@@ -637,11 +653,11 @@ def dla169up(classes, pretrained_base=None, **kwargs):
     model = DLASeg('dla169', classes,
                    pretrained_base=pretrained_base, **kwargs)
     return model
-'''
+
 
 def get_pose_net(num_layers, heads, head_conv=256, down_ratio=4):
   model = DLASeg('dla{}'.format(num_layers), heads,
-                 pretrained=True,
+                 pretrained=False,
                  down_ratio=down_ratio,
                  head_conv=head_conv)
   return model

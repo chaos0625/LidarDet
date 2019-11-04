@@ -8,6 +8,25 @@ from progress.bar import Bar
 from models.data_parallel import DataParallel
 from utils.utils import AverageMeter
 
+def example_convert_to_torch(example, dtype=torch.float32,
+                             device=None) -> dict:
+    device = device or torch.device("cuda:0")
+    example_torch = {}
+   
+    for k, v in example.items():
+        if k in ["inputs","voxels","hm","reg","dim","rotres"]:
+            # slow when directly provide fp32 data with dtype=torch.half
+            example_torch[k] = torch.tensor(
+                v, dtype=torch.float32, device=device).to(dtype)
+        elif k in ["coors", "num_points","rotbin","ind"]:
+            example_torch[k] = torch.tensor(
+                v, dtype=torch.long, device=device)
+        elif k in ["rot_mask","reg_mask",'img']:
+            example_torch[k] = torch.tensor(
+                v, dtype=torch.uint8, device=device)
+        else:
+            NotImplementedError
+    return example_torch
 
 class ModleWithLoss(torch.nn.Module):
   def __init__(self, model, loss):
@@ -15,8 +34,9 @@ class ModleWithLoss(torch.nn.Module):
     self.model = model
     self.loss = loss
   
-  def forward(self, batch):
-    outputs = self.model(batch['input'])
+  def forward(self, batch,batch_size):
+    outputs = self.model(batch['voxels'],batch["coors"],batch["num_points"],batch_size)
+    #outputs = self.model(batch["input"])
     loss, loss_stats = self.loss(outputs, batch)
     return outputs[-1], loss, loss_stats
 
@@ -63,10 +83,14 @@ class BaseTrainer(object):
         break
       data_time.update(time.time() - end)
 
-      for k in batch:
-        if k != 'meta':
-          batch[k] = batch[k].to(device=opt.device, non_blocking=True)    
-      output, loss, loss_stats = model_with_loss(batch)
+      #for k in batch:
+      #  if k != 'meta':
+      #    batch[k] = batch[k].to(device=opt.device, non_blocking=True)
+      batch = example_convert_to_torch(batch)
+      if phase =='train':
+        output, loss, loss_stats = model_with_loss(batch,opt.batch_size)
+      else:
+        output, loss, loss_stats = model_with_loss(batch,1)
       loss = loss.mean()
       if phase == 'train':
         self.optimizer.zero_grad()
@@ -80,7 +104,7 @@ class BaseTrainer(object):
         total=bar.elapsed_td, eta=bar.eta_td)
       for l in avg_loss_stats:
         avg_loss_stats[l].update(
-          loss_stats[l].mean().item(), batch['input'].size(0))
+          loss_stats[l].mean().item(), batch['hm'].size(0))
         Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(l, avg_loss_stats[l].avg)
       if not opt.hide_data_time:
         Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \

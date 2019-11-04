@@ -12,6 +12,7 @@ from .networks.dlav0 import get_pose_net as get_dlav0
 from .networks.pose_dla_dcn import get_pose_net as get_dla_dcn
 from .networks.resnet_dcn import get_pose_net as get_pose_net_dcn
 from .networks.large_hourglass import get_large_hourglass_net
+from .networks.voxelnet import get_voxel_net
 
 _model_factory = {
   'res': get_pose_net, # default Resnet with deconv
@@ -26,6 +27,10 @@ def create_model(arch, heads, head_conv):
   arch = arch[:arch.find('_')] if '_' in arch else arch
   get_model = _model_factory[arch]
   model = get_model(num_layers=num_layers, heads=heads, head_conv=head_conv)
+  return model
+
+def voxelnet(opt):
+  model = get_voxel_net(opt)
   return model
 
 def load_model(model, model_path, optimizer=None, resume=False, 

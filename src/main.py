@@ -9,18 +9,43 @@ import os
 import torch
 import torch.utils.data
 from opts import opts
-from models.model import create_model, load_model, save_model
+from models.model import create_model, load_model, save_model,voxelnet
 from models.data_parallel import DataParallel
 from logger import Logger
 from datasets.dataset_factory import get_dataset
 from trains.train_factory import train_factory
+from collections import defaultdict
+import numpy as np
 
+def merge_second_batch(batch_list):
+    example_merged = defaultdict(list)
+    for example in batch_list:
+        for k, v in example.items():
+            example_merged[k].append(v)
+    ret = {}
+    for key, elems in example_merged.items():
+        if key in [
+                'voxels', 'num_points'
+        ]:
+            ret[key] = np.concatenate(elems, axis=0)
+        elif key == 'coors':
+            coors = []
+            for i, coor in enumerate(elems):
+                coor_pad = np.pad(
+                    coor, ((0, 0), (1, 0)), mode='constant', constant_values=i)
+                coors.append(coor_pad)
+            ret[key] = np.concatenate(coors, axis=0)
+        else:
+            ret[key] = np.stack(elems, axis=0)
+    return ret
 
 def main(opt):
   torch.manual_seed(opt.seed)
   torch.backends.cudnn.benchmark = not opt.not_cuda_benchmark and not opt.test
   Dataset = get_dataset(opt.dataset, opt.task)
   opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
+  train_db = Dataset(opt,'train')
+  val_db = Dataset(opt,'val')
   print(opt)
 
   logger = Logger(opt)
@@ -29,8 +54,13 @@ def main(opt):
   opt.device = torch.device('cuda' if opt.gpus[0] >= 0 else 'cpu')
   
   print('Creating model...')
-  model = create_model(opt.arch, opt.heads, opt.head_conv)
+  if opt.task !='cardet':
+    model = create_model(opt.arch, opt.heads, opt.head_conv)
+  else:
+    model = voxelnet(opt)
+
   optimizer = torch.optim.Adam(model.parameters(), opt.lr)
+
   start_epoch = 0
   if opt.load_model != '':
     model, optimizer, start_epoch = load_model(
@@ -42,11 +72,13 @@ def main(opt):
 
   print('Setting up data...')
   val_loader = torch.utils.data.DataLoader(
-      Dataset(opt, 'val'), 
+      val_db,
       batch_size=1, 
       shuffle=False,
       num_workers=1,
-      pin_memory=True
+      pin_memory=False,
+      collate_fn=merge_second_batch,
+      drop_last=True
   )
 
   if opt.test:
@@ -55,11 +87,12 @@ def main(opt):
     return
 
   train_loader = torch.utils.data.DataLoader(
-      Dataset(opt, 'train'), 
+      train_db, 
       batch_size=opt.batch_size, 
       shuffle=True,
       num_workers=opt.num_workers,
-      pin_memory=True,
+      pin_memory=False,
+      collate_fn = merge_second_batch,
       drop_last=True
   )
 
