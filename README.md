@@ -11,11 +11,15 @@ Modify the centernet code for lidar detection. I have got a better performance t
 
 ## Main results
 | Backbone     |  TASK|Recall | Precision|   AP |
+
 |--------------|-----------|--------------|-----------------------|
+
 |DLA-34        | Lidar Det|0.89 | 0.83    |   --            |
 ## Installation
 Requirement:
+
 pytorch
+
 spconv  https://github.com/traveller59/spconv (just use the voxel generate operator)
 ## Use CenterNet For Lidar Detection
 
@@ -37,7 +41,9 @@ cd src; python eval.py cardet
 
 ## TensorRT deploy
 | Backbone     | FP32 | FP16|INT8|
+
 |--------------|-----------|--------------|
+
 |DLA-34        | 10-13ms | 7-10ms    | |              |
 
 pytorch to onnx to tensorRT code will coming soon
