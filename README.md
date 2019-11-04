@@ -38,6 +38,7 @@ cd src; python eval.py cardet
 ~~~
 The output will look like
 <p align="center"> <img src='readme/det3.jpg' align="center" height="230px"> </p>
+
 ## TensorRT deploy
 
 | Backbone     | FP32       | FP16       |INT8 |
